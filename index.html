@@ -17,7 +17,6 @@
             --success-color: #28a745;
             --danger-color: #dc3545;
             --warning-color: #ffc107;
-            --save-color: #1976d2;
         }
         
         * {
@@ -124,10 +123,6 @@
             background-color: var(--success-color);
         }
         
-        #saveAllBtn {
-            background-color: var(--save-color);
-        }
-        
         button:hover {
             transform: translateY(-2px);
             box-shadow: 0 4px 8px rgba(0,0,0,0.4);
@@ -135,6 +130,11 @@
         
         button:active {
             transform: translateY(0);
+        }
+        
+        .status {
+            color: var(--accent-color);
+            font-weight: 500;
         }
         
         .artifacts-library {
@@ -360,6 +360,7 @@
             padding: 10px;
         }
         
+        /* Обновленные стили для кнопок "Выдано" */
         .issued-control {
             display: flex;
             align-items: center;
@@ -402,6 +403,7 @@
             box-shadow: 0 2px 5px rgba(0,0,0,0.3);
         }
         
+        /* Поле заметок */
         .notes-container {
             margin-top: 10px;
         }
@@ -432,6 +434,7 @@
             box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.2);
         }
         
+        /* Общие заметки */
         .general-notes {
             margin-top: 40px;
             padding: 20px;
@@ -459,6 +462,7 @@
             color: white;
         }
         
+        /* Кнопка удаления игрока */
         .player-delete-btn {
             position: absolute;
             top: 10px;
@@ -485,6 +489,7 @@
             background-color: #ff0000;
         }
         
+        /* Drag preview */
         .drag-preview {
             position: fixed;
             pointer-events: none;
@@ -499,12 +504,13 @@
             opacity: 0.9;
         }
         
+        /* Уведомление о синхронизации */
         .sync-notification {
             position: fixed;
             bottom: 20px;
             right: 20px;
             padding: 12px 20px;
-            background-color: var(--save-color);
+            background-color: var(--success-color);
             color: white;
             border-radius: 8px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.3);
@@ -519,6 +525,7 @@
             opacity: 1;
         }
         
+        /* Адаптивность */
         @media (max-width: 1200px) {
             .players-container {
                 grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -560,8 +567,8 @@
         
         <div class="controls">
             <button id="resetBtn"><i class="fas fa-redo"></i> Сбросить все данные</button>
-            <button id="saveAllBtn"><i class="fas fa-save"></i> Сохранить все</button>
             <button id="addPlayerBtn"><i class="fas fa-plus"></i> Добавить игрока</button>
+            <div class="status">Изменения сохраняются автоматически</div>
         </div>
         
         <div class="artifacts-library">
@@ -712,34 +719,25 @@
         </div>
     </div>
 
-    <!-- Уведомление о сохранении -->
+    <!-- Уведомление о синхронизации -->
     <div id="syncNotification" class="sync-notification"></div>
-
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-database-compat.js"></script>
 
     <script>
         // Firebase configuration
-        const firebaseConfig = {
-            databaseURL: "https://artefacts-46779-default-rtdb.asia-southeast1.firebasedatabase.app/"
-        };
-
-        // Initialize Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        // Ключи для localStorage
-        const STORAGE_KEY = 'playersArtifactsSystem_v10';
-        const GENERAL_NOTES_KEY = 'generalNotes_v6';
+        const FIREBASE_DB_URL = 'https://artefacts-46779-default-rtdb.asia-southeast1.firebasedatabase.app/';
+        const FIREBASE_DATA_PATH = 'data.json';
         
-        // Создаем начальные данные для 10 игроков
+        // Ключи для localStorage
+        const STORAGE_KEY = 'playersArtifactsSystem_v9';
+        const GENERAL_NOTES_KEY = 'generalNotes_v5';
+        
+        // Создаем начальные данные для 20 игроков
         function createInitialPlayers() {
             const players = [];
-            for (let i = 1; i <= 10; i++) {
+            for (let i = 1; i <= 20; i++) {
                 players.push({
                     id: i,
-                    name: `Игрок ${i}`,
+                    name: "",
                     link: "",
                     artifacts: Array(6).fill(null),
                     issued: null,
@@ -758,27 +756,32 @@
             return createInitialPlayers();
         }
 
-        // Загружаем данные из Firebase
+        // Загружаем все данные (сначала пробуем Firebase, потом локальные)
         async function loadAllData() {
             try {
-                const snapshot = await database.ref('/').once('value');
-                const data = snapshot.val();
+                // Пытаемся загрузить с Firebase
+                const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_DATA_PATH}`);
                 
-                if (data) {
-                    // Сохраняем в localStorage
-                    localStorage.setItem(STORAGE_KEY, JSON.stringify(data.players || []));
-                    localStorage.setItem(GENERAL_NOTES_KEY, data.generalNotes || '');
+                if (response.ok) {
+                    const data = await response.json();
                     
-                    return {
-                        players: data.players || createInitialPlayers(),
-                        generalNotes: data.generalNotes || ""
-                    };
+                    // Проверяем, что данные не пустые
+                    if (data) {
+                        // Сохраняем в localStorage
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(data.players || []));
+                        localStorage.setItem(GENERAL_NOTES_KEY, data.generalNotes || '');
+                        
+                        return {
+                            players: data.players || createInitialPlayers(),
+                            generalNotes: data.generalNotes || ""
+                        };
+                    }
                 }
             } catch (error) {
-                console.error("Ошибка загрузки из Firebase:", error);
+                console.error("Ошибка загрузки с Firebase:", error);
             }
             
-            // Если не удалось загрузить из Firebase, пробуем локальные данные
+            // Если не удалось загрузить с Firebase или данные пустые, пробуем локальные данные
             const localPlayers = loadLocalPlayers();
             return {
                 players: localPlayers && localPlayers.length > 0 ? localPlayers : createInitialPlayers(),
@@ -786,8 +789,8 @@
             };
         }
         
-        // Сохраняем все данные (и локально, и в Firebase)
-        async function saveAllData(showNotificationFlag = false) {
+        // Сохраняем все данные (и локально, и на Firebase)
+        async function saveAllData() {
             const data = {
                 players: players,
                 generalNotes: document.getElementById('generalNotes').value,
@@ -800,14 +803,22 @@
             
             // Синхронизируем с Firebase
             try {
-                await database.ref('/').set(data);
+                const response = await fetch(`${FIREBASE_DB_URL}${FIREBASE_DATA_PATH}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(data)
+                });
                 
-                if (showNotificationFlag) {
-                    showNotification('Сохранено');
+                if (response.ok) {
+                    showNotification('Данные сохранены и синхронизированы');
+                } else {
+                    throw new Error('Ошибка сохранения в Firebase');
                 }
             } catch (error) {
                 console.error("Ошибка синхронизации с Firebase:", error);
-                showNotification('Ошибка сохранения', true);
+                showNotification('Ошибка синхронизации', true);
             }
         }
         
@@ -818,7 +829,7 @@
                 localStorage.removeItem(STORAGE_KEY);
                 localStorage.removeItem(GENERAL_NOTES_KEY);
                 document.getElementById('generalNotes').value = "";
-                await saveAllData(true);
+                await saveAllData();
                 renderPlayers();
             }
         }
@@ -828,7 +839,7 @@
             const newId = players.length > 0 ? Math.max(...players.map(p => p.id)) + 1 : 1;
             players.push({
                 id: newId,
-                name: `Игрок ${newId}`,
+                name: "",
                 link: "",
                 artifacts: Array(6).fill(null),
                 issued: null,
@@ -842,7 +853,7 @@
         function deletePlayer(playerId) {
             if (confirm('Вы уверены, что хотите удалить этого игрока?')) {
                 players = players.filter(p => p.id !== playerId);
-                saveAllData(true);
+                saveAllData();
                 renderPlayers();
             }
         }
@@ -877,6 +888,7 @@
                 nameInput.addEventListener('input', (e) => {
                     player.name = e.target.value;
                     updatePlayerLink(player);
+                    saveAllData();
                 });
                 
                 const linkContainer = document.createElement('div');
@@ -889,6 +901,7 @@
                 linkInput.value = player.link;
                 linkInput.addEventListener('input', (e) => {
                     player.link = e.target.value;
+                    saveAllData();
                 });
                 
                 const link = document.createElement('a');
@@ -1055,7 +1068,7 @@
                     empty.textContent = 'Перетащите артефакт';
                     slot.appendChild(empty);
                     
-                    saveAllData(true);
+                    saveAllData();
                 }
             }
         }
@@ -1193,7 +1206,7 @@
                 }
             }
             
-            saveAllData(true);
+            saveAllData();
         }
         
         // Инициализация перетаскивания
@@ -1208,7 +1221,7 @@
         function showNotification(message, isError = false) {
             const notification = document.getElementById('syncNotification');
             notification.textContent = message;
-            notification.style.backgroundColor = isError ? 'var(--danger-color)' : 'var(--save-color)';
+            notification.style.backgroundColor = isError ? 'var(--danger-color)' : 'var(--success-color)';
             notification.classList.add('show');
             
             setTimeout(() => {
@@ -1239,23 +1252,15 @@
             renderPlayers();
             
             // Настройка обработчиков событий
-            document.getElementById('generalNotes').addEventListener('input', debounce(() => saveAllData(false), 1000));
+            document.getElementById('generalNotes').addEventListener('input', debounce(saveAllData, 1000));
             document.getElementById('resetBtn').addEventListener('click', resetData);
             document.getElementById('addPlayerBtn').addEventListener('click', addNewPlayer);
-            document.getElementById('saveAllBtn').addEventListener('click', () => saveAllData(true));
             
             // Настройка перетаскивания артефактов
             initDragAndDrop();
             
-            // Слушаем изменения в Firebase
-            database.ref('/').on('value', (snapshot) => {
-                const data = snapshot.val();
-                if (data) {
-                    players = data.players || [];
-                    document.getElementById('generalNotes').value = data.generalNotes || '';
-                    renderPlayers();
-                }
-            });
+            // Периодическая синхронизация (каждые 30 сек)
+            setInterval(saveAllData, 30000);
         });
     </script>
 </body>
